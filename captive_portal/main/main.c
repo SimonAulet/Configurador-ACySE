@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 
+#include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
@@ -33,8 +34,7 @@ extern const char root_end[] asm("_binary_root_html_end");
 static const char *TAG = "example";
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
-                               int32_t event_id, void *event_data)
-{
+                               int32_t event_id, void *event_data){
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
         ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
@@ -137,6 +137,7 @@ esp_err_t set_pin_handler(httpd_req_t *req){
 }
 
 
+
 static const httpd_uri_t root = {
     .uri = "/",
     .method = HTTP_GET,
@@ -144,8 +145,7 @@ static const httpd_uri_t root = {
 };
 
 // HTTP Error (404) Handler - Redirects all requests to the root page
-esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
-{
+esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err){
     // Set status
     httpd_resp_set_status(req, "302 Temporary Redirect");
     // Redirect to the "/" root directory
@@ -163,8 +163,7 @@ static const httpd_uri_t set_pin_uri = {
     .user_ctx  = NULL
 };
 
-static httpd_handle_t start_webserver(void)
-{
+static httpd_handle_t start_webserver(void){
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets = 13;
@@ -182,8 +181,9 @@ static httpd_handle_t start_webserver(void)
     }
     return server;
 }
-//Inicializo pin13 como salida
+//Inicializo pines como salida
 gpio_config_t io_conf = {
+
     .pin_bit_mask = (1ULL << 13) | (1ULL << 12) | (1ULL << 14),
     //.pin_bit_mask = (1ULL << 13),
     .mode = GPIO_MODE_OUTPUT,
@@ -192,6 +192,42 @@ gpio_config_t io_conf = {
     .intr_type = GPIO_INTR_DISABLE
 };
 
+void guardar_estado_gpio(int pin, int value) {
+    nvs_handle_t my_handle;
+    char key[10];
+    sprintf(key, "pin_%d", pin);
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err == ESP_OK) {
+        nvs_set_i32(my_handle, key, value);
+        nvs_commit(my_handle);
+        nvs_close(my_handle);
+        ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
+    }
+}
+
+void test_conf() {
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    int pin = 13;
+    char key[10];
+    sprintf(key, "pin_%d", pin);
+
+    int32_t value = 0;
+    err = nvs_get_i32(my_handle, key, &value);
+    if (err == ESP_OK) {
+        gpio_set_level(pin, value);
+        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);  // Fix: %d espera int, pero value es int32_t
+    } else {
+        ESP_LOGW("NVS", "No se encontró valor para %s", key);
+    }
+
+    nvs_close(my_handle);
+}
 
 void app_main(void)
 {
@@ -199,8 +235,16 @@ void app_main(void)
         Turn of warnings from HTTP server as redirecting traffic will yield
         lots of invalid requests
     */
+    //Configuracion de los pines
     gpio_config(&io_conf);
-    //gpio_set_level(13, 1);
+    //Inicializo memoria permanente
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+
+    ESP_ERROR_CHECK(ret);
 
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
@@ -233,4 +277,7 @@ void app_main(void)
     // Start the DNS server that will redirect all queries to the softAP IP
     dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
     start_dns_server(&config);
+
+    guardar_estado_gpio(13, 1);
+    test_conf();
 }
