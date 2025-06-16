@@ -1,0 +1,22 @@
+<h2>Configurar pines</h2>
+
+<label>
+  <input type="checkbox" onchange="togglePin(13, this.checked)"> LED Rojo (GPIO 13)
+</label>
+<br>
+<label>
+  <input type="checkbox" onchange="togglePin(12, this.checked)"> LED Verde (GPIO 12)
+</label>
+<br>
+<label>
+  <input type="checkbox" onchange="togglePin(14, this.checked)"> LED Azul (GPIO 14)
+</label>
+
+<script>
+function togglePin(pin, state) {
+  const value = state ? 1 : 0;
+  fetch(`/set_pin?pin=${pin}&value=${value}`)
+    .then(response => console.log(`GPIO ${pin} set to ${value}`))
+    .catch(err => console.error("Error:", err));
+}
+</script>

@@ -21,6 +21,8 @@
 #include "esp_http_server.h"
 #include "dns_server.h"
 
+#include "driver/gpio.h"
+
 #define EXAMPLE_ESP_WIFI_SSID CONFIG_ESP_WIFI_SSID
 #define EXAMPLE_ESP_WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_MAX_STA_CONN CONFIG_ESP_MAX_STA_CONN
@@ -188,7 +190,7 @@ gpio_config_t io_conf = {
     .pull_up_en = 0,
     .intr_type = GPIO_INTR_DISABLE
 };
-gpio_config(&io_conf);
+
 
 void app_main(void)
 {
@@ -196,6 +198,9 @@ void app_main(void)
         Turn of warnings from HTTP server as redirecting traffic will yield
         lots of invalid requests
     */
+    gpio_config(&io_conf);
+    //gpio_set_level(13, 1);
+
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
     esp_log_level_set("httpd_parse", ESP_LOG_ERROR);
