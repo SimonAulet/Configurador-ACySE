@@ -12,5 +12,16 @@
     <h1>Ingresar Red Wifi</h1>
     <h1>Ingresar clave Wifi</h1>
     <p>Resto de configuracion va aca</p>
+    <script>
+    function setPin() {
+      fetch('/set_pin?pin=13&value=1')
+        .then(response => console.log("Comando enviado"))
+        .catch(err => console.error("Error:", err));
+    }
+    </script>
   </body>
 </html>
+
+
+<button onclick="setPin()">Encender LED</button>
+
