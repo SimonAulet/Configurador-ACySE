@@ -136,8 +136,6 @@ esp_err_t set_pin_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
-
-
 static const httpd_uri_t root = {
     .uri = "/",
     .method = HTTP_GET,
@@ -181,6 +179,7 @@ static httpd_handle_t start_webserver(void){
     }
     return server;
 }
+
 //Inicializo pines como salida
 gpio_config_t io_conf = {
 
