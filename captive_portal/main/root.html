@@ -12,16 +12,24 @@
     <h1>Ingresar Red Wifi</h1>
     <h1>Ingresar clave Wifi</h1>
     <p>Resto de configuracion va aca</p>
-    <script>
-    function setPin() {
-      fetch('/set_pin?pin=13&value=1')
-        .then(response => console.log("Comando enviado"))
-        .catch(err => console.error("Error:", err));
-    }
-    </script>
   </body>
 </html>
 
+<label>
+  <input type="checkbox" onchange="togglePin(13, this.checked)"> LED Blanco (GPIO 13)
+</label>
+<label>
+  <input type="checkbox" onchange="togglePin(12, this.checked)"> LED Rojo (GPIO 12)
+</label>
+<label>
+  <input type="checkbox" onchange="togglePin(14, this.checked)"> LED Verde (GPIO 14)
+</label>
 
-<button onclick="setPin()">Encender LED</button>
-
+<script>
+function togglePin(pin, state) {
+  const value = state ? 1 : 0;
+  fetch(`/set_pin?pin=${pin}&value=${value}`)
+    .then(response => console.log(`GPIO ${pin} set to ${value}`))
+    .catch(err => console.error("Error:", err));
+}
+</script>

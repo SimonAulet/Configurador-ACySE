@@ -184,7 +184,8 @@ static httpd_handle_t start_webserver(void)
 }
 //Inicializo pin13 como salida
 gpio_config_t io_conf = {
-    .pin_bit_mask = (1ULL << 13),
+    .pin_bit_mask = (1ULL << 13) | (1ULL << 12) | (1ULL << 14),
+    //.pin_bit_mask = (1ULL << 13),
     .mode = GPIO_MODE_OUTPUT,
     .pull_down_en = 0,
     .pull_up_en = 0,
