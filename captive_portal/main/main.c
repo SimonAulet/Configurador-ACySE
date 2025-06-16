@@ -44,8 +44,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-static void wifi_init_softap(void)
-{
+static void wifi_init_softap(void){
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -106,8 +105,7 @@ static void dhcp_set_captiveportal_url(void) {
 #endif // CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL
 
 // HTTP GET Handler
-static esp_err_t root_get_handler(httpd_req_t *req)
-{
+static esp_err_t root_get_handler(httpd_req_t *req){
     const uint32_t root_len = root_end - root_start;
 
     ESP_LOGI(TAG, "Serve root");
@@ -116,6 +114,26 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
     return ESP_OK;
 }
+//Manejador pin 13
+esp_err_t set_pin_handler(httpd_req_t *req){
+    char buf[100];
+    int ret = httpd_req_get_url_query_str(req, buf, sizeof(buf));
+    if (ret == ESP_OK) {
+        char param[10];
+        if (httpd_query_key_value(buf, "pin", param, sizeof(param)) == ESP_OK) {
+            int pin = atoi(param);
+            if (httpd_query_key_value(buf, "value", param, sizeof(param)) == ESP_OK) {
+                int value = atoi(param);
+                gpio_set_level(pin, value);
+                ESP_LOGI("set_pin", "Set GPIO %d to %d", pin, value);
+            }
+        }
+    }
+
+    httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
 
 static const httpd_uri_t root = {
     .uri = "/",
@@ -136,6 +154,12 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     ESP_LOGI(TAG, "Redirecting to root");
     return ESP_OK;
 }
+static const httpd_uri_t set_pin_uri = {
+    .uri       = "/set_pin",
+    .method    = HTTP_GET,
+    .handler   = set_pin_handler,
+    .user_ctx  = NULL
+};
 
 static httpd_handle_t start_webserver(void)
 {
@@ -151,9 +175,20 @@ static httpd_handle_t start_webserver(void)
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &root);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
+        httpd_register_uri_handler(server, &set_pin_uri);
+
     }
     return server;
 }
+//Inicializo pin13 como salida
+gpio_config_t io_conf = {
+    .pin_bit_mask = (1ULL << 13),
+    .mode = GPIO_MODE_OUTPUT,
+    .pull_down_en = 0,
+    .pull_up_en = 0,
+    .intr_type = GPIO_INTR_DISABLE
+};
+gpio_config(&io_conf);
 
 void app_main(void)
 {
