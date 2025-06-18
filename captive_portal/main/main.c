@@ -28,6 +28,11 @@
 #define EXAMPLE_ESP_WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_MAX_STA_CONN CONFIG_ESP_MAX_STA_CONN
 
+typedef struct {
+    char pin[16];
+    int32_t val;
+} pin_config_T;
+
 extern const char root_start[] asm("_binary_root_html_start");
 extern const char root_end[] asm("_binary_root_html_end");
 
@@ -116,7 +121,7 @@ static esp_err_t root_get_handler(httpd_req_t *req){
 
     return ESP_OK;
 }
-//Manejador pin 13
+//Manejador pines
 esp_err_t set_pin_handler(httpd_req_t *req){
     char buf[100];
     int ret = httpd_req_get_url_query_str(req, buf, sizeof(buf));
@@ -141,7 +146,6 @@ static const httpd_uri_t root = {
     .method = HTTP_GET,
     .handler = root_get_handler
 };
-
 // HTTP Error (404) Handler - Redirects all requests to the root page
 esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err){
     // Set status
@@ -160,7 +164,6 @@ static const httpd_uri_t set_pin_uri = {
     .handler   = set_pin_handler,
     .user_ctx  = NULL
 };
-
 static httpd_handle_t start_webserver(void){
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -179,10 +182,8 @@ static httpd_handle_t start_webserver(void){
     }
     return server;
 }
-
 //Inicializo pines como salida
 gpio_config_t io_conf = {
-
     .pin_bit_mask = (1ULL << 13) | (1ULL << 12) | (1ULL << 14),
     //.pin_bit_mask = (1ULL << 13),
     .mode = GPIO_MODE_OUTPUT,
@@ -203,7 +204,26 @@ void guardar_estado_gpio(int pin, int value) {
         ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
     }
 }
-
+void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+    for (size_t i = 0; i < cantidad; i++) {
+        int32_t dummy;
+        err = nvs_get_i32(handle, defaults[i].pin, &dummy);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            nvs_set_i32(handle, defaults[i].pin, defaults[i].val);
+            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].pin, (long)defaults[i].val);
+        } else {
+            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].pin);
+        }
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
 void test_conf() {
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
@@ -211,25 +231,24 @@ void test_conf() {
         ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
         return;
     }
-
     int pin = 13;
     char key[10];
+    int i=1;
+
     sprintf(key, "pin_%d", pin);
 
     int32_t value = 0;
     err = nvs_get_i32(my_handle, key, &value);
     if (err == ESP_OK) {
         gpio_set_level(pin, value);
-        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);  // Fix: %d espera int, pero value es int32_t
+        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);
     } else {
-        ESP_LOGW("NVS", "No se encontró valor para %s", key);
+        ESP_LOGW("NVS", "No se encontró valor para %s, se usa default", key);
     }
 
     nvs_close(my_handle);
 }
-
-void app_main(void)
-{
+void app_main(void){
     /*
         Turn of warnings from HTTP server as redirecting traffic will yield
         lots of invalid requests
@@ -238,7 +257,7 @@ void app_main(void)
     gpio_config(&io_conf);
     //Inicializo memoria permanente
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND){
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -278,5 +297,6 @@ void app_main(void)
     start_dns_server(&config);
 
     guardar_estado_gpio(13, 1);
+
     test_conf();
 }
