@@ -224,6 +224,7 @@ void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
     nvs_commit(handle);
     nvs_close(handle);
 }
+
 void test_conf() {
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
@@ -233,7 +234,6 @@ void test_conf() {
     }
     int pin = 13;
     char key[10];
-    int i=1;
 
     sprintf(key, "pin_%d", pin);
 
@@ -248,13 +248,12 @@ void test_conf() {
 
     nvs_close(my_handle);
 }
+
 void app_main(void){
-    /*
-        Turn of warnings from HTTP server as redirecting traffic will yield
-        lots of invalid requests
-    */
+
     //Configuracion de los pines
     gpio_config(&io_conf);
+
     //Inicializo memoria permanente
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND){
@@ -268,15 +267,11 @@ void app_main(void){
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
     esp_log_level_set("httpd_parse", ESP_LOG_ERROR);
 
-
     // Initialize networking stack
     ESP_ERROR_CHECK(esp_netif_init());
 
     // Create default event loop needed by the  main app
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    // Initialize NVS needed by Wi-Fi
-    ESP_ERROR_CHECK(nvs_flash_init());
 
     // Initialize Wi-Fi including netif with default config
     esp_netif_create_default_wifi_ap();
