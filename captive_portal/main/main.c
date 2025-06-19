@@ -29,7 +29,7 @@
 #define EXAMPLE_MAX_STA_CONN CONFIG_ESP_MAX_STA_CONN
 
 typedef struct {
-    char pin[16];
+    char key[16];
     int32_t val;
 } pin_config_T;
 
@@ -213,12 +213,12 @@ void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
     }
     for (size_t i = 0; i < cantidad; i++) {
         int32_t dummy;
-        err = nvs_get_i32(handle, defaults[i].pin, &dummy);
+        err = nvs_get_i32(handle, defaults[i].key, &dummy);
         if (err == ESP_ERR_NVS_NOT_FOUND) {
-            nvs_set_i32(handle, defaults[i].pin, defaults[i].val);
-            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].pin, (long)defaults[i].val);
+            nvs_set_i32(handle, defaults[i].key, defaults[i].val);
+            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
         } else {
-            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].pin);
+            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].key);
         }
     }
     nvs_commit(handle);
@@ -291,7 +291,14 @@ void app_main(void){
     dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
     start_dns_server(&config);
 
-    guardar_estado_gpio(13, 1);
+    //Si no hay configuración seteada por el usuario se graban las defaults
+    const pin_config_T defaults[] = {
+        {"pin_13", 1},
+        {"pin_12", 0},
+        {"pin_14", 1}
+    };
+    verificar_defaults(defaults, 3);
+
 
     test_conf();
 }
