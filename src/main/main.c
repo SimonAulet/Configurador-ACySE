@@ -90,32 +90,6 @@ static void wifi_init_softap(void){
              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
 }
 
-#ifdef CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL
-static void dhcp_set_captiveportal_url(void) {
-    // get the IP of the access point to redirect to
-    esp_netif_ip_info_t ip_info;
-    esp_netif_get_ip_info(esp_netif_get_handle_from_ifkey("WIFI_AP_DEF"), &ip_info);
-
-    char ip_addr[16];
-    inet_ntoa_r(ip_info.ip.addr, ip_addr, 16);
-    ESP_LOGI(TAG, "Set up softAP with IP: %s", ip_addr);
-
-    // turn the IP into a URI
-    char* captiveportal_uri = (char*) malloc(32 * sizeof(char));
-    assert(captiveportal_uri && "Failed to allocate captiveportal_uri");
-    strcpy(captiveportal_uri, "http://");
-    strcat(captiveportal_uri, ip_addr);
-
-    // get a handle to configure DHCP with
-    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-
-    // set the DHCP option 114
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(netif));
-    ESP_ERROR_CHECK(esp_netif_dhcps_option(netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captiveportal_uri, strlen(captiveportal_uri)));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(netif));
-}
-#endif // CONFIG_ESP_ENABLE_DHCP_CAPTIVEPORTAL
-
 // HTTP GET Handler
 static esp_err_t root_get_handler(httpd_req_t *req){
     const uint32_t root_len = root_end - root_start;
@@ -309,30 +283,6 @@ void guardar_estado_gpio(int pin, int value){
         nvs_close(my_handle);
         ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
     }
-}
-
-void test_conf() {
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
-        return;
-    }
-    int pin = 13;
-    char key[10];
-
-    sprintf(key, "pin_%d", pin);
-
-    int32_t value = 0;
-    err = nvs_get_i32(my_handle, key, &value);
-    if (err == ESP_OK) {
-        gpio_set_level(pin, value);
-        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);
-    } else {
-        ESP_LOGW("NVS", "No se encontró valor para %s, se usa default", key);
-    }
-
-    nvs_close(my_handle);
 }
 
 void verificar_defaults(const pin_config_T *defaults, int cantidad){
