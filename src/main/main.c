@@ -36,7 +36,6 @@ const pin_config_T defaults[] = {
 void aplicar_configuraciones_guardadas(const pin_config_T *defaults, int cantidad);
 void verificar_defaults(const pin_config_T *defaults, int cantidad);
 void guardar_estado_gpio(int pin, int value);
-void guardar_estado_gpio(int pin, int value);
 
 extern const char root_start[] asm("_binary_root_html_start");
 extern const char root_end[] asm("_binary_root_html_end");
@@ -151,7 +150,7 @@ esp_err_t set_nvs_handler(httpd_req_t *req) {
     return ESP_FAIL;
 }
 //Aplicador de config almacenada
-esp_err_t aplicar_config_handler(httpd_req_t *req) {
+esp_err_t aplicar_config_handler(httpd_req_t *req){
     aplicar_configuraciones_guardadas(defaults, NCONFIGS);
     httpd_resp_sendstr(req, "Configuración aplicada");
     return ESP_OK;
