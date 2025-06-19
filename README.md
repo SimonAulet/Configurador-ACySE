@@ -17,12 +17,14 @@ Este proyecto permite configurar salidas GPIO de un ESP32 a través de una inter
 - ESP32 (WROOM o compatible)
 - Navegador para acceder al portal
 - Acceso a la terminal (`idf.py`)
+- Protoboard + 3 leds + 3 resistencias de 220 ohm
 
 ## Instrucciones rápidas
 
 ```
+Armar protoboard segun "conexiónes.svg"
 idf.py set-target esp32
-idf.py menuconfig         # Opcional: cambiar SSID/AP
+idf.py menuconfig         # Ir a example para cambiar ssid y pwd
 idf.py build
 idf.py flash
 idf.py monitor
@@ -32,14 +34,12 @@ Luego, conectarse al Wi-Fi creado por el ESP32, y acceder desde el navegador (se
 
 ## Estructura
 
-- `main/`: lógica del servidor web y control de GPIOs
-- `html/`: contenido de la interfaz embebida
-- `nvs`: configuración persistente de pines
-- `README.md`: este archivo
+- `src/main.c`: Por el momento, la totalidad del programa
+- `src/root.html`: Pagina web para interactuar una vez configurado
 - `Informe.pdf`: documentación completa del proyecto
 
 ## Autor
 
 Desarrollado por Simon Aulet para la materia "Arquitectura de Computadoras y Sistemas Embebidos" – UNRN 2025.
 
-Para más detalles técnicos, ver el informe incluido en este repositorio.
+Para más descrpción completa ver el informe
