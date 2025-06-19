@@ -32,3 +32,50 @@ function togglePin(pin, state) {
 </script>
   </body>
 </html>
+<h2>Probar configuración</h2>
+
+<label>
+  <input type="checkbox" onchange="togglePin(13, this.checked)"> Config 1
+</label>
+<br>
+<label>
+  <input type="checkbox" onchange="togglePin(12, this.checked)"> Config 2
+</label>
+<br>
+<label>
+  <input type="checkbox" onchange="togglePin(14, this.checked)"> Config 3
+</label>
+
+<h3>Configuracion persistente</h3>
+
+<label><input type="checkbox" id="pin_13"> Pin 13</label><br>
+<label><input type="checkbox" id="pin_12"> Pin 12</label><br>
+<label><input type="checkbox" id="pin_14"> Pin 14</label><br>
+
+<br>
+<button onclick="guardarYAplicar()">Aplicar configuración</button>
+
+<script>
+const pins = ["pin_13", "pin_12", "pin_14"];
+
+function guardarYAplicar() {
+  // Guardar estado de cada checkbox en NVS
+  let promesas = pins.map(pin => {
+    const val = document.getElementById(pin).checked ? 1 : 0;
+    return fetch(`/set_nvs?key=${pin}&value=${val}`);
+  });
+
+  // Luego de guardar todo, aplicar
+  Promise.all(promesas)
+    .then(() => fetch("/aplicar_config"))
+    .then(() => console.log("Configuración aplicada"))
+    .catch(err => console.error("Error al aplicar configuración:", err));
+}
+//Función para cambios instantaneos, no se almacenan
+function togglePin(pin, state) {
+  const value = state ? 1 : 0;
+  fetch(`/set_pin?pin=${pin}&value=${value}`)
+    .then(response => console.log(`GPIO ${pin} set to ${value}`))
+    .catch(err => console.error("Error:", err));
+}
+</script>

@@ -27,11 +27,23 @@
 #define EXAMPLE_ESP_WIFI_SSID CONFIG_ESP_WIFI_SSID
 #define EXAMPLE_ESP_WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
 #define EXAMPLE_MAX_STA_CONN CONFIG_ESP_MAX_STA_CONN
+#define NCONFIGS 3
 
 typedef struct {
     char key[16];
     int32_t val;
 } pin_config_T;
+
+const pin_config_T defaults[] = {
+    {"pin_13", 0},
+    {"pin_12", 0},
+    {"pin_14", 1}
+};
+
+void aplicar_configuraciones_guardadas(const pin_config_T *defaults, int cantidad);
+void verificar_defaults(const pin_config_T *defaults, int cantidad);
+void guardar_estado_gpio(int pin, int value);
+void guardar_estado_gpio(int pin, int value);
 
 extern const char root_start[] asm("_binary_root_html_start");
 extern const char root_end[] asm("_binary_root_html_end");
@@ -139,6 +151,44 @@ esp_err_t set_pin_handler(httpd_req_t *req){
     httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
+//Almacenador en memoria persistente
+esp_err_t set_nvs_handler(httpd_req_t *req) {
+    char buf[100];
+    int ret = httpd_req_get_url_query_str(req, buf, sizeof(buf));
+    if (ret != ESP_OK) {
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    char key[16];
+    char val_str[8];
+    int32_t val = 0;
+
+    if (httpd_query_key_value(buf, "key", key, sizeof(key)) == ESP_OK &&
+        httpd_query_key_value(buf, "value", val_str, sizeof(val_str)) == ESP_OK) {
+        val = atoi(val_str);
+
+        nvs_handle_t handle;
+        esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+        if (err == ESP_OK) {
+            nvs_set_i32(handle, key, val);
+            nvs_commit(handle);
+            nvs_close(handle);
+            ESP_LOGI("HTTP", "Seteado en NVS: %s = %ld", key, (long)val);
+            httpd_resp_sendstr(req, "OK");
+            return ESP_OK;
+        }
+    }
+
+    httpd_resp_send_500(req);
+    return ESP_FAIL;
+}
+//Aplicador de config almacenada
+esp_err_t aplicar_config_handler(httpd_req_t *req) {
+    aplicar_configuraciones_guardadas(defaults, NCONFIGS);
+    httpd_resp_sendstr(req, "Configuración aplicada");
+    return ESP_OK;
+}
 
 static const httpd_uri_t root = {
     .uri = "/",
@@ -157,12 +207,28 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err){
     ESP_LOGI(TAG, "Redirecting to root");
     return ESP_OK;
 }
+//Handler para setear pines manualmente
 static const httpd_uri_t set_pin_uri = {
     .uri       = "/set_pin",
     .method    = HTTP_GET,
     .handler   = set_pin_handler,
     .user_ctx  = NULL
 };
+//Handler para almacenar configuración
+httpd_uri_t uri_set_nvs = {
+    .uri = "/set_nvs",
+    .method = HTTP_GET,
+    .handler = set_nvs_handler,
+    .user_ctx = NULL
+};
+//Handler para aplicar config almacenada
+httpd_uri_t uri_aplicar = {
+    .uri = "/aplicar_config",
+    .method = HTTP_GET,
+    .handler = aplicar_config_handler,
+    .user_ctx = NULL
+};
+
 static httpd_handle_t start_webserver(void){
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -177,6 +243,8 @@ static httpd_handle_t start_webserver(void){
         httpd_register_uri_handler(server, &root);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
         httpd_register_uri_handler(server, &set_pin_uri);
+        httpd_register_uri_handler(server, &uri_set_nvs);
+        httpd_register_uri_handler(server, &uri_aplicar);
     }
     return server;
 }
@@ -189,91 +257,6 @@ gpio_config_t io_conf = {
     .pull_up_en = 0,
     .intr_type = GPIO_INTR_DISABLE
 };
-
-void guardar_estado_gpio(int pin, int value) {
-    nvs_handle_t my_handle;
-    char key[10];
-    sprintf(key, "pin_%d", pin);
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err == ESP_OK) {
-        nvs_set_i32(my_handle, key, value);
-        nvs_commit(my_handle);
-        nvs_close(my_handle);
-        ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
-    }
-}
-
-void test_conf() {
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
-        return;
-    }
-    int pin = 13;
-    char key[10];
-
-    sprintf(key, "pin_%d", pin);
-
-    int32_t value = 0;
-    err = nvs_get_i32(my_handle, key, &value);
-    if (err == ESP_OK) {
-        gpio_set_level(pin, value);
-        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);
-    } else {
-        ESP_LOGW("NVS", "No se encontró valor para %s, se usa default", key);
-    }
-
-    nvs_close(my_handle);
-}
-
-void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
-        return;
-    }
-
-    for (size_t i = 0; i < cantidad; i++) {
-        int32_t dummy;
-        err = nvs_get_i32(handle, defaults[i].key, &dummy);
-        if (err == ESP_ERR_NVS_NOT_FOUND) {
-            nvs_set_i32(handle, defaults[i].key, defaults[i].val);
-            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
-        } else {
-            int32_t actual = -1;
-            nvs_get_i32(handle, defaults[i].key, &actual);
-            ESP_LOGI("NVS", "Key %s ya existe en NVS con valor real = %ld", defaults[i].key, (long)actual);
-            //ESP_LOGI("NVS", "Key %s ya existe, (%li) no se modifica", defaults[i].key, defaults[i].val);
-        }
-    }
-    nvs_commit(handle);
-    nvs_close(handle);
-}
-//Aplico configuración de nvm al hw. Necesito pasar defaults para saber que pines se modifican
-void aplicar_configuraciones_guardadas(const pin_config_T *defaults, size_t cantidad){
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "No se pudo abrir NVS: %s", esp_err_to_name(err));
-        return;
-    }
-
-    for (size_t i = 0; i < cantidad; i++) {
-        int32_t val = 0;
-        err = nvs_get_i32(handle, defaults[i].key, &val);
-        if (err == ESP_OK) {
-            // Extraer el número de pin desde el nombre de la clave "pin_13" → 13
-            int pin = atoi(&defaults[i].key[4]);
-            gpio_set_level(pin, val);
-            ESP_LOGI("GPIO", "GPIO %d seteado a %ld", pin, (long)val);
-        } else {
-            ESP_LOGW("NVS", "No se encontró valor para %s", defaults[i].key);
-        }
-    }
-    nvs_close(handle);
-}
 
 void app_main(void){
 
@@ -317,14 +300,92 @@ void app_main(void){
     dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
     start_dns_server(&config);
 
-    const pin_config_T defaults[] = {
-    {"pin_13", 0},
-    {"pin_12", 0},
-    {"pin_14", 1}
-    };
-    verificar_defaults(defaults, sizeof(defaults)/sizeof(defaults[0]));
-    aplicar_configuraciones_guardadas(defaults, sizeof(defaults)/sizeof(defaults[0]));
 
+    verificar_defaults(defaults, NCONFIGS);
+    aplicar_configuraciones_guardadas(defaults, NCONFIGS);
+}
 
-    //test_conf();
+void guardar_estado_gpio(int pin, int value){
+    nvs_handle_t my_handle;
+    char key[10];
+    sprintf(key, "pin_%d", pin);
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err == ESP_OK) {
+        nvs_set_i32(my_handle, key, value);
+        nvs_commit(my_handle);
+        nvs_close(my_handle);
+        ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
+    }
+}
+
+void test_conf() {
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+    int pin = 13;
+    char key[10];
+
+    sprintf(key, "pin_%d", pin);
+
+    int32_t value = 0;
+    err = nvs_get_i32(my_handle, key, &value);
+    if (err == ESP_OK) {
+        gpio_set_level(pin, value);
+        ESP_LOGI("NVS", "GPIO %d seteado a %ld", pin, (long)value);
+    } else {
+        ESP_LOGW("NVS", "No se encontró valor para %s, se usa default", key);
+    }
+
+    nvs_close(my_handle);
+}
+
+void verificar_defaults(const pin_config_T *defaults, int cantidad){
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    for (int i = 0; i < cantidad; i++) {
+        int32_t dummy;
+        err = nvs_get_i32(handle, defaults[i].key, &dummy);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            nvs_set_i32(handle, defaults[i].key, defaults[i].val);
+            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
+        } else {
+            int32_t actual = -1;
+            nvs_get_i32(handle, defaults[i].key, &actual);
+            ESP_LOGI("NVS", "Key %s ya existe en NVS con valor real = %ld", defaults[i].key, (long)actual);
+            //ESP_LOGI("NVS", "Key %s ya existe, (%li) no se modifica", defaults[i].key, defaults[i].val);
+        }
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+//Aplico configuración de nvm al hw. Necesito pasar defaults para saber que pines se modifican
+void aplicar_configuraciones_guardadas(const pin_config_T *defaults, int cantidad){
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "No se pudo abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    for (int i = 0; i < cantidad; i++) {
+        int32_t val = 0;
+        err = nvs_get_i32(handle, defaults[i].key, &val);
+        if (err == ESP_OK) {
+            // Extraer el número de pin desde el nombre de la clave "pin_13" → 13
+            int pin = atoi(&defaults[i].key[4]);
+            gpio_set_level(pin, val);
+            ESP_LOGI("GPIO", "GPIO %d seteado a %ld", pin, (long)val);
+        } else {
+            ESP_LOGW("NVS", "No se encontró valor para %s", defaults[i].key);
+        }
+    }
+    nvs_close(handle);
 }
