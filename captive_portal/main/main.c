@@ -242,10 +242,36 @@ void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
             nvs_set_i32(handle, defaults[i].key, defaults[i].val);
             ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
         } else {
-            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].key);
+            int32_t actual = -1;
+            nvs_get_i32(handle, defaults[i].key, &actual);
+            ESP_LOGI("NVS", "Key %s ya existe en NVS con valor real = %ld", defaults[i].key, (long)actual);
+            //ESP_LOGI("NVS", "Key %s ya existe, (%li) no se modifica", defaults[i].key, defaults[i].val);
         }
     }
     nvs_commit(handle);
+    nvs_close(handle);
+}
+//Aplico configuración de nvm al hw. Necesito pasar defaults para saber que pines se modifican
+void aplicar_configuraciones_guardadas(const pin_config_T *defaults, size_t cantidad){
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "No se pudo abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    for (size_t i = 0; i < cantidad; i++) {
+        int32_t val = 0;
+        err = nvs_get_i32(handle, defaults[i].key, &val);
+        if (err == ESP_OK) {
+            // Extraer el número de pin desde el nombre de la clave "pin_13" → 13
+            int pin = atoi(&defaults[i].key[4]);
+            gpio_set_level(pin, val);
+            ESP_LOGI("GPIO", "GPIO %d seteado a %ld", pin, (long)val);
+        } else {
+            ESP_LOGW("NVS", "No se encontró valor para %s", defaults[i].key);
+        }
+    }
     nvs_close(handle);
 }
 
@@ -297,6 +323,7 @@ void app_main(void){
     {"pin_14", 1}
     };
     verificar_defaults(defaults, sizeof(defaults)/sizeof(defaults[0]));
+    aplicar_configuraciones_guardadas(defaults, sizeof(defaults)/sizeof(defaults[0]));
 
 
     //test_conf();
