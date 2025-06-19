@@ -136,7 +136,6 @@ esp_err_t set_pin_handler(httpd_req_t *req){
             }
         }
     }
-
     httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -178,7 +177,6 @@ static httpd_handle_t start_webserver(void){
         httpd_register_uri_handler(server, &root);
         httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);
         httpd_register_uri_handler(server, &set_pin_uri);
-
     }
     return server;
 }
@@ -204,26 +202,6 @@ void guardar_estado_gpio(int pin, int value) {
         ESP_LOGI("NVS", "Guardado: %s = %d", key, value);
     }
 }
-void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
-        return;
-    }
-    for (size_t i = 0; i < cantidad; i++) {
-        int32_t dummy;
-        err = nvs_get_i32(handle, defaults[i].key, &dummy);
-        if (err == ESP_ERR_NVS_NOT_FOUND) {
-            nvs_set_i32(handle, defaults[i].key, defaults[i].val);
-            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
-        } else {
-            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].key);
-        }
-    }
-    nvs_commit(handle);
-    nvs_close(handle);
-}
 
 void test_conf() {
     nvs_handle_t my_handle;
@@ -247,6 +225,28 @@ void test_conf() {
     }
 
     nvs_close(my_handle);
+}
+
+void verificar_defaults(const pin_config_T *defaults, size_t cantidad) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error al abrir NVS: %s", esp_err_to_name(err));
+        return;
+    }
+
+    for (size_t i = 0; i < cantidad; i++) {
+        int32_t dummy;
+        err = nvs_get_i32(handle, defaults[i].key, &dummy);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            nvs_set_i32(handle, defaults[i].key, defaults[i].val);
+            ESP_LOGI("NVS", "Seteando default: %s = %ld", defaults[i].key, (long)defaults[i].val);
+        } else {
+            ESP_LOGI("NVS", "Key %s ya existe, no se modifica", defaults[i].key);
+        }
+    }
+    nvs_commit(handle);
+    nvs_close(handle);
 }
 
 void app_main(void){
@@ -291,14 +291,13 @@ void app_main(void){
     dns_server_config_t config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
     start_dns_server(&config);
 
-    //Si no hay configuración seteada por el usuario se graban las defaults
     const pin_config_T defaults[] = {
-        {"pin_13", 1},
-        {"pin_12", 0},
-        {"pin_14", 1}
+    {"pin_13", 0},
+    {"pin_12", 0},
+    {"pin_14", 1}
     };
-    verificar_defaults(defaults, 3);
+    verificar_defaults(defaults, sizeof(defaults)/sizeof(defaults[0]));
 
 
-    test_conf();
+    //test_conf();
 }
