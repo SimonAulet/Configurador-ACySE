@@ -331,3 +331,4 @@ void aplicar_configuraciones_guardadas(const pin_config_T *defaults, int cantida
     }
     nvs_close(handle);
 }
+
